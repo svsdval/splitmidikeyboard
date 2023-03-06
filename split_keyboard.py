@@ -30,6 +30,8 @@ vProgram1Num = 81
 vProgram2Num = 10 # 45 82 88 91  92 96  94  98 | 103 105 114
 vSplitKeyBoardTransponse1 = -12
 vSplitKeyBoardTransponse2 = 0
+vVelocityControl = False;
+vReplaceValue = 127;
 
 def stopAll():
   if outport == None:
@@ -40,17 +42,17 @@ def stopAll():
     outport.send( mido.Message('note_off',channel=1, note=i ) )
 
 def apply():
-  global vSplitTheKeybaord, vSplitTheKeybaordFromNum, vProgram1Num, vProgram2Num, vSplitKeyBoardTransponse1, vSplitKeyBoardTransponse2
+  global vSplitTheKeybaord, vSplitTheKeybaordFromNum, vProgram1Num, vProgram2Num, vSplitKeyBoardTransponse1, vSplitKeyBoardTransponse2,vVelocityControl
   if outport == None:
     return
   #
   stopAll()
   #
-  print("fvsplitkeyboard:", fvsplitkeyboard.get())
   vSplitTheKeybaord        = fvsplitkeyboard.get()
   vSplitTheKeybaordFromNum = int(fvSplitKeyBoardFromNum.get())
   vSplitKeyBoardTransponse1 = int(fvSplitKeyBoardTransponse1.get())
   vSplitKeyBoardTransponse2 = int(fvSplitKeyBoardTransponse2.get())
+  vVelocityControl = fvVelocityControl.get();
 
   vProgram1Num = int(Programm1.get())
   vProgram2Num = int(Programm2.get())
@@ -64,9 +66,13 @@ def apply():
 #control_change channel=0 control=7 value=48 t
 
 def mainloop():
-  global outport, inport
-  outport = mido.open_output( voutput.get() )
-  inport = mido.open_input( vinput.get() )
+  global outport, inport,vReplaceValue
+  try:
+    outport = mido.open_output( voutput.get() )
+    inport = mido.open_input( vinput.get() )
+    fbConnect["text"] = "disconnect"
+  except:
+    return;
   apply()
 
   for msg in inport:
@@ -78,12 +84,27 @@ def mainloop():
         else:
           msg.channel=0
           msg.note+= vSplitKeyBoardTransponse1
+      if vVelocityControl:
+        msg.velocity = vReplaceValue;
+    if msg.type == 'control_change':
+      vReplaceValue = msg.value
+      value_var.set( vReplaceValue );
     
     print(msg)
     outport.send(msg)
 
 def connect():
-  fbConnect["state"] = "disabled"
+  global outport,inport;
+  #fbConnect["state"] = "disabled"
+  if outport != None:
+    outport.close()
+    inport.close()
+    fbConnect["text"] = "connect"
+    time.sleep(0.25)
+    outport = None;
+    inport = None;
+
+    return
   try:
    _thread.start_new_thread(mainloop, ())
   except:
@@ -119,7 +140,6 @@ fvSplitKeyBoardTransponse1.set(vSplitKeyBoardTransponse1)
 fvSplitKeyBoardTransponse2 = IntVar(root)
 fvSplitKeyBoardTransponse2.set(vSplitKeyBoardTransponse2)
 
-
 Label(root, text='Ch1 Prgm:',  font=deffont).place(x=10, y=10)
 Label(root, text='Ch2 Prgm:',  font=deffont).place(x=100, y=10)
 
@@ -136,6 +156,14 @@ Label(root, text='Transpose:',  font=deffont).place(x=10, y=90)
 Spinbox(root, textvariable=fvSplitKeyBoardFromNum, from_=1, to=128, font=deffont, width=4, command=apply).place(x=80, y=70)
 Spinbox(root, textvariable=fvSplitKeyBoardTransponse1, from_=-127, to=128, font=deffont,  width=4, command=apply).place(x=80, y=90)
 Spinbox(root, textvariable=fvSplitKeyBoardTransponse2, from_=-127, to=128, font=deffont,  width=4, command=apply).place(x=130, y=90)
+#scrollbar = Scrollbar(root, orient='horizontal').place(200,100);
+
+value_var = IntVar(value=30)
+fvVelocityControl = BooleanVar(root)
+fvVelocityControl.set(False)
+
+Checkbutton(root, text='Replace velocity', variable=fvVelocityControl,  font=deffont, command=apply).place(x=180, y=10)
+ttk.Progressbar(orient="vertical", variable=value_var, maximum=127).place(width=20,height=80,x=190,y=30)
 
 voutput = StringVar(root)
 vinput = StringVar(root)
